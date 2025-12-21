@@ -81,7 +81,6 @@ pub struct Lobby {
     players: HashMap<u32, Player>,
     max_players: u32,
     dummy_player: Option<Player>,
-    created_at: SystemTime,
     client_addresses: HashMap<u32, std::net::SocketAddr>, // player_id -> client address
     scene: String,
 }
@@ -115,7 +114,6 @@ impl GameServer {
                 position: (5.0, 1.0, 0.0),
                 last_update: SystemTime::now(),
             }),
-            created_at: SystemTime::now(),
             client_addresses: HashMap::new(),
             scene: scene,
         };
@@ -150,14 +148,6 @@ impl GameServer {
     pub fn set_player_address(&mut self, lobby_code: &str, player_id: u32, address: std::net::SocketAddr) {
         if let Some(lobby) = self.lobbies.get_mut(lobby_code) {
             lobby.client_addresses.insert(player_id, address);
-        }
-    }
-
-    fn get_lobby_clients(&self, lobby_code: &str) -> Vec<(u32, std::net::SocketAddr)> {
-        if let Some(lobby) = self.lobbies.get(lobby_code) {
-            lobby.client_addresses.iter().map(|(id, addr)| (*id, *addr)).collect()
-        } else {
-            Vec::new()
         }
     }
 
@@ -280,6 +270,22 @@ async fn list_lobbies(State(state): State<AppState>) -> Json<Vec<LobbyInfo>> {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let game_server = Arc::new(RwLock::new(GameServer::new()));
 
+    // Create the test server lobby automatically on startup
+    {
+        let mut server = game_server.write().await;
+        match server.create_lobby("test".to_string(), 8, "test_world".to_string()) {
+            Ok(lobby) => {
+                println!("✅ Test server 'test' created successfully");
+                println!("   - Code: {}", lobby.code);
+                println!("   - Max players: {}", lobby.max_players);
+                println!("   - Scene: {}", lobby.scene);
+            }
+            Err(e) => {
+                eprintln!("❌ Failed to create test server: {}", e);
+            }
+        }
+    }
+
     // HTTP Server
     let app_state = game_server.clone();
     let app = Router::new()
@@ -292,21 +298,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Start HTTP server
     let http_addr = "0.0.0.0:8080";
-    println!("HTTP server running on {}", http_addr);
+    println!("Starting HTTP server on {}", http_addr);
     let http_server = tokio::spawn(async move {
-        axum::serve(
-            tokio::net::TcpListener::bind(http_addr).await.unwrap(),
-            app,
-        )
-        .await
-        .unwrap();
+        let listener = match tokio::net::TcpListener::bind(http_addr).await {
+            Ok(listener) => {
+                println!("HTTP server successfully bound to {}", http_addr);
+                listener
+            }
+            Err(e) => {
+                eprintln!("Failed to bind HTTP server to {}: {}", http_addr, e);
+                eprintln!("Make sure no other process is using port 8080");
+                return;
+            }
+        };
+
+        if let Err(e) = axum::serve(listener, app).await {
+            eprintln!("HTTP server error: {}", e);
+        }
     });
 
     // UDP Server for real-time communication
     let udp_addr = "0.0.0.0:8081";
-    println!("UDP server running on {}", udp_addr);
+    println!("Starting UDP server on {}", udp_addr);
 
-    let udp_socket = Arc::new(UdpSocket::bind(udp_addr).await?);
+    let udp_socket = Arc::new(match UdpSocket::bind(udp_addr).await {
+        Ok(socket) => {
+            println!("UDP server successfully bound to {}", udp_addr);
+            socket
+        }
+        Err(e) => {
+            eprintln!("Failed to bind UDP server to {}: {}", udp_addr, e);
+            eprintln!("Make sure no other process is using port 8081");
+            return Err(e.into());
+        }
+    });
     let udp_socket_clone = udp_socket.clone();
 
     let game_server_clone = game_server.clone();
