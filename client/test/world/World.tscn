@@ -17,6 +17,18 @@
 [node name="World" type="Node3D"]
 script = ExtResource("1_world")
 
+[node name="ErrorLabel" type="Label" parent="."]
+visible = false
+offset_left = 400.0
+offset_top = 300.0
+offset_right = 800.0
+offset_bottom = 400.0
+text = "Failed to connect to server!
+Make sure the server is running on localhost:8080
+Check console for details."
+horizontal_alignment = 1
+vertical_alignment = 1
+
 [node name="Crosshair" parent="." instance=ExtResource("2_4lfbs")]
 
 [node name="Hud" parent="." instance=ExtResource("3_llimo")]
