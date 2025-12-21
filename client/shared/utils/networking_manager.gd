@@ -27,6 +27,7 @@ signal player_joined(player_data: Dictionary)
 signal player_left(player_id: int)
 signal position_update_received(player_id: int, position: Vector3, rotation: Vector3)
 signal server_dummy_updated(position: Vector3)
+signal connection_confirmed()  # Emitted when server sends welcome message
 
 func _ready() -> void:
 	_setup_http_client()
@@ -101,9 +102,16 @@ func _on_http_request_completed(result: int, response_code: int, headers: Array,
 		push_error("Failed to parse JSON response: " + response_text)
 		return
 
-	# Find the request type
-	var request_type = pending_requests.get(current_request_id, "")
-	pending_requests.erase(current_request_id)
+	# Find the request type - HTTPRequest processes requests sequentially,
+	# so we can use the last pending request
+	var request_type = ""
+	if not pending_requests.is_empty():
+		# Get the first (and likely only) pending request
+		var keys = pending_requests.keys()
+		if keys.size() > 0:
+			var request_id = keys[0]
+			request_type = pending_requests[request_id]
+			pending_requests.erase(request_id)
 
 	match request_type:
 		"create_lobby":
@@ -126,17 +134,21 @@ func _handle_create_lobby_response(response_code: int, data: Dictionary) -> void
 		push_error("Failed to create lobby: " + str(response_code) + " - " + str(data))
 
 func _handle_join_lobby_response(response_code: int, data: Dictionary) -> void:
+	print("Join lobby response - Code:", response_code, " Data keys:", data.keys())
 	if response_code == 200:
 		current_lobby = data.get("lobby", {})
 		player_id = data.get("player_id", -1)
 
+		print("Parsed lobby data - code:", current_lobby.get("code", "none"), " player_id:", player_id)
+
 		# Connect to UDP server
 		var server_ip = current_lobby.get("server_ip", "127.0.0.1")
 		var udp_port = current_lobby.get("udp_port", UDP_PORT)
+		print("Connecting to UDP:", server_ip, ":", udp_port)
 		connect_udp_server(server_ip, udp_port)
 
 		lobby_joined.emit(current_lobby)
-		print("Joined lobby successfully: ", current_lobby.get("code", "unknown"))
+		print("Emitted lobby_joined signal for lobby: ", current_lobby.get("code", "unknown"))
 	else:
 		lobby_join_failed.emit("Failed to join lobby: " + str(response_code))
 		push_error("Failed to join lobby: " + str(response_code) + " - " + str(data))
@@ -159,11 +171,11 @@ func _handle_try_connect_test_lobby_response(response_code: int, data: Dictionar
 	if response_code == 200:
 		# Lobby exists, try to join it
 		print("Test lobby exists, attempting to join...")
-		join_lobby("TEST")
+		join_lobby("test")
 	else:
 		# Lobby doesn't exist, create it
 		print("Test lobby doesn't exist, creating it...")
-		create_lobby("TEST")
+		create_lobby("test")
 
 # UDP Methods
 func connect_udp_server(ip: String, port: int) -> void:
@@ -180,6 +192,7 @@ func connect_udp_server(ip: String, port: int) -> void:
 
 func send_join_packet() -> void:
 	if not connected_to_udp or current_lobby.is_empty():
+		print("Cannot send join packet - UDP not connected or no lobby")
 		return
 
 	var packet = {
@@ -188,6 +201,7 @@ func send_join_packet() -> void:
 		"player_id": player_id
 	}
 
+	print("Sending join packet to server - lobby: ", current_lobby.get("code", ""), " player_id: ", player_id)
 	_send_udp_packet(packet)
 
 func send_position_update(position: Vector3, rotation: Vector3) -> void:
@@ -237,8 +251,9 @@ func _process_udp_packet(data: Dictionary) -> void:
 
 	match packet_type:
 		"welcome":
-			print("Received welcome from server")
+			print("Received welcome from server - connection confirmed!")
 			# Server acknowledged our connection
+			connection_confirmed.emit()
 
 		"position_update":
 			var player_id = data.get("player_id", -1)
@@ -277,9 +292,9 @@ func _process_udp_packet(data: Dictionary) -> void:
 # Test lobby methods
 func connect_to_test_lobby() -> void:
 	print("Attempting to connect to test lobby...")
-	# Try to get lobby info first
+	# Try to get lobby info first (use lowercase "test" to match server)
 	var get_lobby_request_id = _make_request(
-		SERVER_URL + "/lobbies/TEST",
+		SERVER_URL + "/lobbies/test",
 		[],
 		HTTPClient.METHOD_GET,
 		""

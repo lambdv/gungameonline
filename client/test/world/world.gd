@@ -7,15 +7,18 @@ const PLAYER_SPAWN_POSITION = Vector3(0, 1.62212, -2.21878)
 @onready var remote_players: Dictionary = {}  # player_id -> player_instance
 @onready var server_dummy: Node3D = null
 @onready var connection_timer: Timer = null
+@onready var error_label: Label = $ErrorLabel
 
 func _ready() -> void:
 	# Connect to networking signals
 	NetworkingManager.lobby_joined.connect(_on_lobby_joined)
+	NetworkingManager.lobby_created.connect(_on_lobby_created)
 	NetworkingManager.lobby_join_failed.connect(_on_lobby_join_failed)
 	NetworkingManager.player_joined.connect(_on_player_joined)
 	NetworkingManager.player_left.connect(_on_player_left)
 	NetworkingManager.position_update_received.connect(_on_position_update_received)
 	NetworkingManager.server_dummy_updated.connect(_on_server_dummy_updated)
+	NetworkingManager.connection_confirmed.connect(_on_connection_confirmed)
 
 	# Connect to test lobby
 	NetworkingManager.connect_to_test_lobby()
@@ -28,7 +31,13 @@ func _ready() -> void:
 	add_child(connection_timer)
 	connection_timer.start()
 
+func _on_lobby_created(lobby_data: Dictionary) -> void:
+	print("World: Lobby created, now joining it...")
+	# After creating a lobby, join it
+	NetworkingManager.join_lobby(lobby_data.get("code", "TEST"))
+
 func _on_lobby_joined(lobby_data: Dictionary) -> void:
+	print("World: Received lobby_joined signal!")
 	# Stop connection timer
 	if connection_timer:
 		connection_timer.stop()
@@ -145,18 +154,20 @@ func _on_server_dummy_updated(position: Vector3) -> void:
 	if server_dummy:
 		server_dummy.position = position
 
+func _on_connection_confirmed() -> void:
+	print("Connection confirmed by server - stopping timeout timer")
+	if connection_timer:
+		connection_timer.stop()
+
 func _on_connection_timeout() -> void:
 	print("Connection timeout - failed to connect to server after 10 seconds")
 	push_error("Failed to connect to game server. Make sure the server is running on localhost:8080")
 
-	# Create a simple error message on screen
-	var error_label = Label.new()
-	error_label.text = "Failed to connect to server!\nMake sure the server is running on localhost:8080\nCheck console for details."
-	error_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	error_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	error_label.position = Vector2(400, 300)
-	error_label.size = Vector2(400, 100)
-	add_child(error_label)
+	# Show the error message on screen
+	if error_label:
+		error_label.visible = true
+	else:
+		push_error("Error label not found in scene")
 
 # Position sync for local player - throttle updates to 10 per second
 var position_update_timer: float = 0.0
