@@ -11,9 +11,6 @@ func _ready() -> void:
 	# Initially hide the pause menu
 	visible = false
 
-	# Set process mode to always so we can handle input during pause
-	process_mode = PROCESS_MODE_ALWAYS
-
 	# Connect to game state changes
 	if GameStateManager:
 		GameStateManager.paused.connect(_on_game_paused)
@@ -39,21 +36,14 @@ func _on_game_resumed() -> void:
 	if InputManager:
 		InputManager.capture_mouse()
 
-func _input(event: InputEvent) -> void:
-	# Only handle escape key when pause menu is visible
-	if visible and event.is_action_pressed("escape"):
-		_on_resume_pressed()
-		# Consume the event so InputManager doesn't also process it
-		get_viewport().set_input_as_handled()
-
 func _leave_game() -> void:
 	# Leave current lobby but keep HTTP connection alive for lobby browser
 	if NetworkingManager:
 		NetworkingManager.return_to_lobby_browser()
 
-	# Resume game state before changing scenes
-	if GameStateManager:
-		GameStateManager.resume()
+	# Disconnect from multiplayer
+	if MultiplayerManager and MultiplayerManager.is_connected:
+		MultiplayerManager.disconnect_from_server()
 
 	# Change to lobby list scene instead of main menu
 	get_tree().change_scene_to_file("res://ui/lobby_list.tscn")

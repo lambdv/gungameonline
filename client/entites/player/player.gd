@@ -1,50 +1,77 @@
 extends CharacterBody3D
+## Player - First-Person Character Controller
+##
+## Main player character with FPS controls, inventory management, and combat.
+## Supports both local player (with input/camera) and remote players (networked).
+##
+## Features:
+## - WASD movement with mouse look camera
+## - Jump mechanics with physics
+## - Weapon sway animations for immersion
+## - Inventory system with weapon switching
+## - Health/damage system
+## - Network synchronization for multiplayer
+##
+## Architecture:
+## - CharacterBody3D for physics-based movement
+## - Camera rig with head bob and weapon sway
+## - Component-based: Damageable, Inventory, HealthBar3D
+## - Signal-based communication with other systems
 
-const SPEED = 8.0 # movement player positional speed
-const JUMP_VELOCITY = 4.5 # jump velocity
-const SENSITIVITY = 0.003 # sensitivity of the mouse
-const MAX_VERTICAL_ROTATION = deg_to_rad(89)  # Limit to 89 degrees to prevent gimbal lock
+# Movement and camera constants
+const SPEED = 8.0  # Base movement speed in units per second
+const JUMP_VELOCITY = 4.5  # Initial upward velocity when jumping
+const SENSITIVITY = 0.003  # Mouse sensitivity multiplier for camera rotation
+const MAX_VERTICAL_ROTATION = deg_to_rad(89)  # Prevent camera flipping upside down
 
-const SWAY_AMOUNT = 0.02  # How far the weapon sways
-const SWAY_SPEED = 8.0  # How fast the sway animation is
-const JUMP_SWAY_AMOUNT = 0.05  # How far the weapon moves when jumping
-const JUMP_SWAY_SPEED = 10.0  # How fast the jump animation is
+# Weapon sway animation constants - for realistic weapon movement
+const SWAY_AMOUNT = 0.02  # How far weapons sway side-to-side while moving
+const SWAY_SPEED = 8.0  # How quickly weapon sway animation responds
+const JUMP_SWAY_AMOUNT = 0.05  # Extra weapon movement when jumping/landing
+const JUMP_SWAY_SPEED = 10.0  # Speed of jump-related weapon animation
 
-@onready var camera_rig: Node3D = $CameraRig
-@onready var head: Node3D = $CameraRig/Head
-@onready var camera: Camera3D = $CameraRig/Head/Camera3D
-@onready var hand_item: Node3D = $CameraRig/Head/Camera3D/HandItem
-@onready var character_model: Node3D = get_node_or_null("rachel__black_heart_lovell_v5vrm")
+# Scene node references - camera and model hierarchy
+@onready var camera_rig: Node3D = $CameraRig  # Root of camera system (handles rotation)
+@onready var head: Node3D = $CameraRig/Head  # Head node for vertical camera rotation
+@onready var camera: Camera3D = $CameraRig/Head/Camera3D  # Actual camera for rendering
+@onready var hand_item: Node3D = $CameraRig/Head/Camera3D/HandItem  # Weapon attachment point
+@onready var character_model: Node3D = get_node_or_null("rachel__black_heart_lovell_v5vrm")  # 3D model (optional)
 
-var is_local := true
-var current_movement_input := Vector2.ZERO
-var current_mouse_motion := Vector2.ZERO
+# Player state variables
+var is_local := true  # Whether this player is controlled by local input (vs remote networked player)
+var current_movement_input := Vector2.ZERO  # Current WASD/controller input vector
+var current_mouse_motion := Vector2.ZERO  # Mouse movement delta this frame
 
-var inventory: Node = null
-var damageable: Node = null
-var health_bar_3d: Node3D = null
-var current_weapon_instance: Node3D = null
-var hand_item_base_position: Vector3
-var was_on_floor: bool = true
+# Component references - modular player systems
+var inventory: Node = null  # Weapon inventory management
+var damageable: Node = null  # Health and damage handling
+var health_bar_3d: Node3D = null  # Floating 3D health bar above player
+var current_weapon_instance: Node3D = null  # Currently equipped weapon scene instance
+var hand_item_base_position: Vector3  # Original weapon position for sway animations
+var was_on_floor: bool = true  # Previous frame's ground state for jump animations
 # Attack cooldown removed - now handled by weapon fire rate
 
+## _ready
+## Initialize player components and set up signal connections
+## Called when the player node enters the scene tree
 func _ready() -> void:
-	# Add to players group for HUD lookup
+	# Add to "players" group so HUD systems can find all player instances
 	add_to_group("players")
 
-	# Initialize damageable component
+	# Initialize health/damage system - core component for combat
 	damageable = preload("res://shared/utils/damageable.gd").new()
 	add_child(damageable)
 	damageable.health_changed.connect(_on_health_changed)
 	damageable.died.connect(_on_player_died)
 
-	# Initialize 3D health bar
+	# Initialize floating 3D health bar - only visible on remote players
 	health_bar_3d = preload("res://ui/health_bar_3d.gd").new()
 	add_child(health_bar_3d)
-	health_bar_3d.set_target(self)
+	health_bar_3d.set_target(self)  # Tell health bar to follow this player
 	health_bar_3d.set_health(damageable.current_health, damageable.max_health)
-	health_bar_3d.visible = not is_local  # Set initial visibility based on local status
+	health_bar_3d.visible = not is_local  # Hide health bar on local player
 
+	# Initialize weapon inventory system
 	inventory = preload("res://entites/player/inventory.gd").new()
 	add_child(inventory)
 	inventory.active_weapon_changed.connect(_on_active_weapon_changed)
@@ -120,9 +147,9 @@ func jump() -> void:
 	velocity.y = JUMP_VELOCITY
 
 func move(input_dir: Vector2) -> void:
-	# Use camera_rig's basis (horizontal rotation only) for movement direction
-	var horizontal_basis = camera_rig.global_transform.basis
-	
+	# Use player's basis for movement direction (player body rotation determines facing)
+	var horizontal_basis = global_transform.basis
+
 	var direction = (horizontal_basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 	if direction:
 		velocity.x = direction.x * SPEED
@@ -133,9 +160,9 @@ func move(input_dir: Vector2) -> void:
 
 func look():
 	if current_mouse_motion != Vector2.ZERO:
-		camera_rig.rotate_y(-current_mouse_motion.x * SENSITIVITY) # Horizontal rotation
-		# Vertical rotation
-		var new_rotation_x = head.rotation.x - current_mouse_motion.y * SENSITIVITY 
+		rotate_y(-current_mouse_motion.x * SENSITIVITY) # Horizontal rotation - rotate entire player body
+		# Vertical rotation - only rotate head/camera
+		var new_rotation_x = head.rotation.x - current_mouse_motion.y * SENSITIVITY
 		head.rotation.x = clamp(new_rotation_x, -MAX_VERTICAL_ROTATION, MAX_VERTICAL_ROTATION)
 
 		current_mouse_motion = Vector2.ZERO  # Reset after use
@@ -184,9 +211,14 @@ func _on_player_died(attacker: Node) -> void:
 	else:
 		sync_death.rpc_id(1, multiplayer.get_unique_id(), attacker_name)
 
-	# For now, just reset health after a delay
-	await get_tree().create_timer(3.0).timeout
-	damageable.current_health = damageable.max_health
+	# In test scenes, don't auto-respawn - let the scene handle it
+	# Only auto-respawn in actual game scenes
+	var current_scene = get_tree().current_scene
+	if current_scene and not current_scene.scene_file_path.contains("test"):
+		await get_tree().create_timer(3.0).timeout
+		damageable.current_health = damageable.max_health
+	else:
+		print("Player died in test scene - no auto-respawn")
 
 @rpc("any_peer", "call_local")
 func sync_death(victim_peer_id: int, attacker_name: String) -> void:
@@ -198,8 +230,8 @@ func take_damage_remote(damage: int, attacker_peer_id: int) -> void:
 		return
 
 	# Server validates and applies damage
-	var attacker = MultiplayerManager.get_remote_player(attacker_peer_id)
-	damageable.take_damage(damage, attacker)
+	# Note: For now, we don't track specific attacker objects in simplified networking
+	damageable.take_damage(damage, null)
 
 	# Sync health to all clients
 	sync_health.rpc(damageable.current_health, damageable.max_health)
@@ -250,6 +282,10 @@ func load_weapon(weapon_id: int) -> void:
 			current_weapon_instance.initialize_weapon_data(weapon_data)
 		if current_weapon_instance.has_method("set_camera"):
 			current_weapon_instance.set_camera(camera)
+
+		# Ensure weapon position is set correctly after initialization
+		if current_weapon_instance.has_method("reset_to_base_position"):
+			current_weapon_instance.reset_to_base_position()
 
 		set_weapon_visibility(current_weapon_instance, true)
 		hand_item.visible = true

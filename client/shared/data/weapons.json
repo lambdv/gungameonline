@@ -8,7 +8,8 @@
             "range": 100.0,
             "reload_time": 1,
             "ammo": 20,
-            "scene_path": "res://entites/weapons/golden_friend.tscn"
+            "scene_path": "res://entites/weapons/golden_friend.tscn",
+            "position_offset": [0.0, -1, -1]
         },
         {
             "id": 2,
@@ -18,7 +19,8 @@
             "range": 150.0,
             "reload_time": 1.5,
             "ammo": 8,
-            "scene_path": "res://entites/weapons/prototype.tscn"
+            "scene_path": "res://entites/weapons/prototype.tscn",
+            "position_offset": [0.0, -1, 1]
         },
         {
             "id": 3,
@@ -28,7 +30,8 @@
             "range": 3.0,
             "reload_time": 0,
             "ammo": 0,
-            "scene_path": "res://entites/weapons/knife.tscn"
+            "scene_path": "res://entites/weapons/knife.tscn",
+            "position_offset": [0.0, -1, 0.1]
         }
     ]
 }

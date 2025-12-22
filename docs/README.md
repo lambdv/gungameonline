@@ -1,32 +1,70 @@
 # GunGame Documentation
 
-This directory contains all project documentation. Each document covers a specific aspect of the game's design, architecture, and implementation.
+Complete documentation for the minimalist multiplayer FPS game.
 
 ## Documentation Files
 
-### Core Documentation
+### Architecture & Design
 
-- **[Architecture](./architecture.md)** - System architecture, design patterns, and component relationships
-- **[Input System](./input-system.md)** - Detailed documentation of the input management system
-- **[Player Controller](./player-controller.md)** - Player mechanics, controls, and implementation details
+- **[Architecture](./architecture.md)** - System design, components, and data flow
+- **[Networking](./networking.md)** - Complete networking system documentation
+- **[Multiplayer Setup](./multiplayer-setup.md)** - Multiplayer testing and setup guide
 
-### Design & Development
+### API & Reference
 
-- **[Game Design](./game-design.md)** - Game design document, mechanics, and gameplay features
-- **[Development Guide](./development.md)** - Setup instructions, development workflow, and best practices
-- **[Multiplayer Setup](./multiplayer-setup.md)** - Complete guide for setting up and testing multiplayer functionality
-- **[API Reference](./api-reference.md)** - Complete API documentation for scripts and utilities
+- **[API Reference](./api-reference.md)** - Complete API documentation for all systems
+- **[README](../README.md)** - Project overview and quick start guide
 
-## Quick Links
+## Key Systems
 
-- [Project Root](../CLAUDE.md) - Main project context file
-- [.cursorrules](../.cursorrules) - Cursor IDE context rules
+### NetworkingManager
+Single autoload handling all client networking:
+- HTTP REST API for lobbies
+- UDP real-time game synchronization
+- Connection state management
+
+### Server (Rust)
+Dual-protocol game server:
+- HTTP API (Axum) for lobby management
+- UDP server (Tokio) for real-time gameplay
+- Server-side dummy bot AI
+
+### Build System
+- **just**: Task runner for development workflow
+- **Podman**: Containerized server deployment
+- **Godot**: Web and desktop exports
+
+## Quick Start
+
+```bash
+# Install dependencies
+cargo install just  # Task runner
+
+# Build and run everything
+just start
+
+# Open web client at http://localhost:8000
+```
+
+## Project Structure
+
+```
+gungame/
+├── client/              # Godot game client
+│   ├── shared/utils/    # Core autoloads (NetworkingManager, etc.)
+│   ├── entites/         # Game entities (Player, Weapons)
+│   └── ui/              # User interface
+├── server/              # Rust server
+│   └── gungameserver/   # HTTP + UDP server
+├── docs/                # This documentation
+└── scripts/             # Build automation
+```
 
 ## Contributing
 
-When adding new documentation:
-1. Create markdown files in this directory
-2. Update this README with links to new documentation
-3. Update `CLAUDE.md` and `.cursorrules` if adding major new sections
-4. Follow markdown best practices for formatting
+When modifying the codebase:
+1. Follow **KISS principle** - keep implementations simple
+2. Update relevant documentation
+3. Test multiplayer functionality
+4. Use signal-based communication for loose coupling
 

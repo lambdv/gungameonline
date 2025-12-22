@@ -1,17 +1,36 @@
 extends Node3D
+## World Test Scene - Multiplayer Testing Environment
 
-const PLAYER_SCENE = preload("res://entites/player/Player.tscn")
-const PLAYER_SPAWN_POSITION = Vector3(0, 1.62212, -2.21878)
+# Enable input processing for respawn handling
+func _enter_tree() -> void:
+	set_process_input(true)
+##
+## Test scene that demonstrates the complete multiplayer pipeline:
+## - Connects to test lobby via NetworkingManager
+## - Spawns local player with input controls
+## - Spawns remote players as they join
+## - Synchronizes positions in real-time
+## - Shows server-controlled dummy bot
+##
+## This scene serves as both a test environment and reference implementation
+## for how to integrate the networking system into actual game levels.
 
-@onready var local_player: CharacterBody3D = null
-@onready var remote_players: Dictionary = {}  # player_id -> player_instance
-@onready var server_dummy: Node3D = null
-@onready var connection_timer: Timer = null
-@onready var error_label: Label = $ErrorLabel
+const PLAYER_SCENE = preload("res://entites/player/Player.tscn")  # Player prefab for spawning
+const PLAYER_SPAWN_POSITION = Vector3(0, 1.62212, -2.21878)  # Where local player starts
 
+# Player instance tracking
+@onready var local_player: CharacterBody3D = null  # The player we control
+@onready var remote_players: Dictionary = {}  # Network player_id -> CharacterBody3D instance
+@onready var server_dummy: Node3D = null  # Server-controlled bot for testing
+@onready var connection_timer: Timer = null  # Timeout for connection attempts
+@onready var error_label: Label = $ErrorLabel  # UI for connection errors
+
+## _ready
+## Initialize the test world and start multiplayer connection
 func _ready() -> void:
-	# Connect to networking signals
+	# Connect to all networking signals to respond to multiplayer events
 	NetworkingManager.lobby_joined.connect(_on_lobby_joined)
+	NetworkingManager.lobby_left.connect(_on_lobby_left)
 	NetworkingManager.lobby_created.connect(_on_lobby_created)
 	NetworkingManager.lobby_join_failed.connect(_on_lobby_join_failed)
 	NetworkingManager.player_joined.connect(_on_player_joined)
@@ -20,16 +39,36 @@ func _ready() -> void:
 	NetworkingManager.server_dummy_updated.connect(_on_server_dummy_updated)
 	NetworkingManager.connection_confirmed.connect(_on_connection_confirmed)
 
-	# Connect to test lobby
-	NetworkingManager.connect_to_test_lobby()
+	# Connect to local player death signal to handle respawning
+	# We'll connect this when the player is spawned
 
-	# Set up connection timeout timer
-	connection_timer = Timer.new()
-	connection_timer.wait_time = 10.0  # 10 seconds timeout
-	connection_timer.one_shot = true
-	connection_timer.timeout.connect(_on_connection_timeout)
-	add_child(connection_timer)
-	connection_timer.start()
+	# Check if we're already connected to a lobby (joined from lobby list)
+	if NetworkingManager.is_connected_to_lobby():
+		print("World: Already connected to lobby, initializing game...")
+		_on_lobby_joined(NetworkingManager.current_lobby)
+		# Don't start connection timer since we're already connected
+		return
+	elif NetworkingManager.connection_state == NetworkingManager.ConnectionState.CONNECTED_LOBBY:
+		print("World: In lobby but UDP not confirmed yet, waiting for confirmation...")
+		# Start timer but with shorter timeout since we should be close to connected
+		connection_timer = Timer.new()
+		connection_timer.wait_time = 5.0  # 5 seconds timeout
+		connection_timer.one_shot = true
+		connection_timer.timeout.connect(_on_connection_timeout)
+		add_child(connection_timer)
+		connection_timer.start()
+	else:
+		# Start the multiplayer connection process for testing
+		print("World: Not connected to lobby, connecting to test lobby...")
+		NetworkingManager.connect_to_test_lobby()
+
+		# Set up connection timeout timer
+		connection_timer = Timer.new()
+		connection_timer.wait_time = 10.0  # 10 seconds timeout
+		connection_timer.one_shot = true
+		connection_timer.timeout.connect(_on_connection_timeout)
+		add_child(connection_timer)
+		connection_timer.start()
 
 func _on_lobby_created(lobby_data: Dictionary) -> void:
 	print("World: Lobby created, now joining it...")
@@ -37,10 +76,16 @@ func _on_lobby_created(lobby_data: Dictionary) -> void:
 	NetworkingManager.join_lobby(lobby_data.get("code", "TEST"))
 
 func _on_lobby_joined(lobby_data: Dictionary) -> void:
+	print("=== WORLD RECEIVED LOBBY_JOINED SIGNAL ===")
 	print("World: Received lobby_joined signal!")
-	# Stop connection timer
-	if connection_timer:
+	print("Lobby data:", lobby_data)
+
+	# Stop connection timer if it exists
+	if connection_timer and connection_timer.is_inside_tree():
 		connection_timer.stop()
+
+	# Capture mouse for gameplay
+	InputManager.capture_mouse()
 
 	# Spawn local player
 	spawn_local_player()
@@ -53,6 +98,35 @@ func _on_lobby_joined(lobby_data: Dictionary) -> void:
 		var player_id = player_data.get("id", -1)
 		if player_id != NetworkingManager.player_id:
 			spawn_remote_player(player_id, player_data)
+
+	print("World: Scene loading complete!")
+
+func _on_lobby_left() -> void:
+	print("World: Lobby left - cleaning up game objects")
+
+	# Clean up local player
+	if local_player and is_instance_valid(local_player):
+		local_player.queue_free()
+		local_player = null
+
+	# Clean up remote players
+	for player_id in remote_players.keys():
+		var player_instance = remote_players[player_id]
+		if is_instance_valid(player_instance):
+			player_instance.queue_free()
+	remote_players.clear()
+
+	# Clean up server dummy
+	cleanup_server_dummy()
+
+	# Stop connection timer if running
+	if connection_timer and connection_timer.is_inside_tree():
+		connection_timer.stop()
+
+	# Reset mouse capture
+	InputManager.release_mouse()
+
+	print("World: Cleanup complete")
 
 func _on_lobby_join_failed(error: String) -> void:
 	print("Failed to join lobby, will try to create: ", error)
@@ -90,6 +164,7 @@ func _on_position_update_received(player_id: int, position: Vector3, rotation: V
 		var player_instance = remote_players[player_id]
 		if is_instance_valid(player_instance):
 			player_instance.position = position
+			player_instance.rotation = rotation
 
 func cleanup_server_dummy() -> void:
 	if server_dummy and is_instance_valid(server_dummy):
@@ -97,6 +172,11 @@ func cleanup_server_dummy() -> void:
 		server_dummy = null
 
 func spawn_local_player() -> void:
+	# Don't spawn if we already have a local player
+	if local_player and is_instance_valid(local_player):
+		print("World: Local player already exists, skipping spawn")
+		return
+
 	var player_instance = PLAYER_SCENE.instantiate()
 	if not player_instance:
 		push_error("Failed to instantiate player scene!")
@@ -107,6 +187,10 @@ func spawn_local_player() -> void:
 	add_child(player_instance)
 	local_player = player_instance
 
+	# Connect to player death signal for respawning
+	if player_instance.has_signal("died"):
+		player_instance.died.connect(_on_local_player_died)
+
 	# Set camera as current
 	var camera = player_instance.get_node_or_null("CameraRig/Head/Camera3D")
 	if camera:
@@ -114,9 +198,9 @@ func spawn_local_player() -> void:
 	else:
 		push_error("Failed to find camera in player scene!")
 
-	# Set as local player in multiplayer manager if available
-	if MultiplayerManager:
-		MultiplayerManager.set_local_player(player_instance)
+	print("World: Local player spawned successfully")
+
+	# Local player setup complete - NetworkingManager handles multiplayer coordination
 
 func spawn_remote_player(player_id: int, player_data: Dictionary) -> void:
 	if player_id in remote_players:
@@ -159,6 +243,46 @@ func _on_connection_confirmed() -> void:
 	if connection_timer:
 		connection_timer.stop()
 
+func _on_local_player_died(attacker: Node) -> void:
+	print("World: Local player died!")
+	if error_label:
+		error_label.visible = true
+		error_label.text = "You died! Press R to respawn or leave the game."
+
+	# Disconnect from death signal to prevent multiple connections
+	if local_player and local_player.has_signal("died"):
+		local_player.died.disconnect(_on_local_player_died)
+
+func _input(event: InputEvent) -> void:
+	# Handle respawn input
+	if event.is_action_pressed("reload") and local_player and local_player.has_node("Damageable"):
+		var damageable = local_player.get_node("Damageable")
+		if damageable and not damageable.is_alive():
+			print("World: Respawning player...")
+			respawn_local_player()
+
+func respawn_local_player() -> void:
+	if not local_player:
+		spawn_local_player()
+		return
+
+	# Reset player health and position
+	local_player.position = PLAYER_SPAWN_POSITION
+	if local_player.has_node("Damageable"):
+		var damageable = local_player.get_node("Damageable")
+		if damageable.has_method("heal"):
+			damageable.heal(999)  # Full heal
+
+	# Reconnect death signal
+	if local_player.has_signal("died"):
+		local_player.died.connect(_on_local_player_died)
+
+	# Hide error message
+	if error_label:
+		error_label.visible = false
+
+	print("World: Player respawned")
+
 func _on_connection_timeout() -> void:
 	print("Connection timeout - failed to connect to server after 10 seconds")
 	push_error("Failed to connect to game server. Make sure the server is running on localhost:8080")
@@ -169,16 +293,24 @@ func _on_connection_timeout() -> void:
 	else:
 		push_error("Error label not found in scene")
 
-# Position sync for local player - throttle updates to 10 per second
+# Position synchronization - send local player position to server
+# Throttled to 10 updates per second to balance responsiveness vs bandwidth
 var position_update_timer: float = 0.0
-const POSITION_UPDATE_INTERVAL: float = 0.1  # 10 updates per second
+const POSITION_UPDATE_INTERVAL: float = 0.2  # 5 updates per second
 
+## _process
+## Handle continuous position synchronization when connected to multiplayer
+## @param delta: Time elapsed since last frame
 func _process(delta: float) -> void:
+	# Only send position updates if we have a local player and are connected
 	if local_player and NetworkingManager.is_connected_to_lobby():
 		position_update_timer += delta
+
+		# Throttle updates to prevent network spam while maintaining responsiveness
 		if position_update_timer >= POSITION_UPDATE_INTERVAL:
 			position_update_timer = 0.0
-			# Send position updates to server
+
+			# Send current position and rotation to server for broadcasting
 			var pos = local_player.position
 			var rot = local_player.rotation
 			NetworkingManager.send_position_update(pos, rot)

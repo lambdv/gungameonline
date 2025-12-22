@@ -32,4 +32,4 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.000264883, -0.840887, 0.000
 transform = Transform3D(0.179597, 0, 0.0100977, 0, 0.179881, 0, -0.0100977, 0, 0.179597, 0.325252, -0.363009, -0.776006)
 
 [node name="rachel__black_heart_lovell_v5vrm" parent="." instance=ExtResource("2_pbn7k")]
-transform = Transform3D(-0.99542, 0, 0.0956026, 0, 1, 0, -0.0956026, 0, -0.99542, 0.000228643, -1.83234, 0.145043)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.000228643, -1.83234, 0.145043)

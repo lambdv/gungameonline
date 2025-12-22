@@ -1,20 +1,20 @@
 [gd_scene load_steps=4 format=3 uid="uid://b8q3k7m2xh4j8"]
 
-[ext_resource type="Script" path="res://ui/lobby_item.gd" id="1_8q3k7"]
+[ext_resource type="Script" uid="uid://b8gniuboysg4s" path="res://ui/lobby_item.gd" id="1_8q3k7"]
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_lobby" id="1"]
+[sub_resource type="StyleBoxFlat" id="1"]
 bg_color = Color(0.15, 0.15, 0.15, 1)
-corner_radius_top_left = 6
-corner_radius_top_right = 6
-corner_radius_bottom_right = 6
-corner_radius_bottom_left = 6
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
 border_color = Color(0.3, 0.3, 0.3, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_join" id="2"]
+[sub_resource type="StyleBoxFlat" id="2"]
 bg_color = Color(0.2, 0.6, 0.2, 1)
 corner_radius_top_left = 4
 corner_radius_top_right = 4
@@ -37,8 +37,8 @@ theme_override_constants/separation = 2
 
 [node name="LobbyCode" type="Label" parent="HBoxContainer/InfoContainer"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
 theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 20
 text = "ABC123"
 
 [node name="PlayerCount" type="Label" parent="HBoxContainer/InfoContainer"]

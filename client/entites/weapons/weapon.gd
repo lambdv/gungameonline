@@ -61,7 +61,8 @@ func play_simple_attack_animation() -> void:
 	var base_position = position
 	var recoil_distance = 0.15  # Increased from 0.05 for more movement
 
-	current_tween.tween_property(self, "position", base_position + Vector3(0, 0, -recoil_distance), 0.1)
+	# Recoil backward (away from camera) - positive Z moves toward camera in Godot
+	current_tween.tween_property(self, "position", base_position + Vector3(0, 0, recoil_distance), 0.1)
 	current_tween.tween_property(self, "position", base_position, 0.1)
 	current_tween.tween_callback(func(): current_tween = null)
 
