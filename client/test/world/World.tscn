@@ -1,8 +1,9 @@
-[gd_scene load_steps=9 format=3 uid="uid://5eekt2aa1jae"]
+[gd_scene load_steps=10 format=3 uid="uid://5eekt2aa1jae"]
 
 [ext_resource type="Script" uid="uid://dhdgh1qp6kttd" path="res://test/world/world.gd" id="1_world"]
 [ext_resource type="PackedScene" uid="uid://hlxn3r45403a" path="res://ui/overlays/hud/crosshair.tscn" id="2_4lfbs"]
 [ext_resource type="PackedScene" uid="uid://dk2n560dayotq" path="res://ui/overlays/hud/hud.tscn" id="3_llimo"]
+[ext_resource type="PackedScene" path="res://ui/pause/pause_menu.tscn" id="4_pausemenu"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_io8um"]
 
@@ -32,6 +33,8 @@ vertical_alignment = 1
 [node name="Crosshair" parent="." instance=ExtResource("2_4lfbs")]
 
 [node name="Hud" parent="." instance=ExtResource("3_llimo")]
+
+[node name="PauseMenu" parent="." instance=ExtResource("4_pausemenu")]
 
 [node name="floor" type="StaticBody3D" parent="."]
 transform = Transform3D(16.1704, 0, 0, 0, 0.107474, 0, 0, 0, 15.2245, 0, 0, 0)

@@ -310,3 +310,22 @@ func get_current_lobby_code() -> String:
 
 func get_connected_player_ids() -> Array:
 	return connected_players.keys()
+
+func leave_current_lobby() -> void:
+	# Leave the current lobby (disconnect UDP game connection)
+	# but keep HTTP connection alive for lobby operations
+	if udp_peer:
+		udp_peer.close()
+		connected_to_udp = false
+
+	# Clear current lobby state but keep HTTP client ready
+	current_lobby.clear()
+	player_id = -1
+	connected_players.clear()
+
+	print("Left current lobby (UDP disconnected, HTTP still available)")
+
+func disconnect_from_network() -> void:
+	# Fully disconnect from network (closes both UDP and clears all state)
+	leave_current_lobby()
+	print("Fully disconnected from networking")

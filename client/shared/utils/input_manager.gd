@@ -27,12 +27,10 @@ func _physics_process(_delta: float) -> void:
 	jump_just_pressed = false
 	mouse_motion = Vector2.ZERO
 
-	# Process escape key to toggle mouse capture or pause
-	if Input.is_action_just_pressed("escape"):
-		if GameStateManager.is_playing():
-			toggle_mouse_capture()
-		elif GameStateManager.is_paused():
-			GameStateManager.resume()
+	# Process escape key to toggle pause menu
+	# Only handle escape when playing (pause menu handles it when paused)
+	if Input.is_action_just_pressed("escape") and GameStateManager.is_playing():
+		GameStateManager.pause()
 
 	# Only process game input if in playing state
 	if not GameStateManager.can_process_input():
@@ -82,13 +80,14 @@ func _unhandled_input(event: InputEvent) -> void:
 	# Only process mouse input if in playing state
 	if not GameStateManager.can_process_input():
 		return
-	
+
 	if event is InputEventMouseMotion and mouse_captured:
 		mouse_motion = event.relative
 		mouse_motion_changed.emit(mouse_motion)
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed and not mouse_captured:
-		# Recapture mouse when clicking on screen
-		capture_mouse()
+		# Only recapture mouse if not in paused state (to allow UI interaction)
+		if GameStateManager.is_playing():
+			capture_mouse()
 
 # Public methods for other nodes to access input state
 func get_movement_input() -> Vector2:

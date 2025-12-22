@@ -56,7 +56,7 @@ horizontal_alignment = 1
 [node name="ActionButtons" type="HBoxContainer" parent="VBoxContainer/Header"]
 layout_mode = 2
 theme_override_constants/separation = 15
-alignment = 1
+alignment = 2
 
 [node name="CreateButton" type="Button" parent="VBoxContainer/Header/ActionButtons"]
 layout_mode = 2
