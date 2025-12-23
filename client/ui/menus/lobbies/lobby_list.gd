@@ -6,7 +6,6 @@ extends Control
 @onready var random_button: Button = $VBoxContainer/Header/ActionButtons/RandomButton
 @onready var refresh_button: Button = $VBoxContainer/Header/ActionButtons/RefreshButton
 
-var networking_manager: Node
 var lobby_item_scene: PackedScene = preload("res://ui/menus/lobbies/lobby_item.tscn")
 var _is_joining_random: bool = false
 var _current_status: String = ""
@@ -16,11 +15,11 @@ func _ready() -> void:
 	if InputManager:
 		InputManager.release_mouse()
 	
-	networking_manager = get_node("/root/NetworkingManager")
-	networking_manager.lobby_list_received.connect(_on_lobby_list_received)
-	networking_manager.lobby_created.connect(_on_lobby_created)
-	networking_manager.lobby_joined.connect(_on_lobby_joined)
-	networking_manager.lobby_join_failed.connect(_on_lobby_join_failed)
+	# Connect to signals from ServerCallbacks
+	ServerCallbacks.lobby_list_received.connect(_on_lobby_list_received)
+	ServerCallbacks.lobby_created.connect(_on_lobby_created)
+	ServerCallbacks.lobby_joined.connect(_on_lobby_joined)
+	ServerCallbacks.lobby_join_failed.connect(_on_lobby_join_failed)
 
 	create_button.connect("pressed", Callable(self, "_on_create_pressed"))
 	random_button.connect("pressed", Callable(self, "_on_random_pressed"))
@@ -30,7 +29,7 @@ func _ready() -> void:
 	_on_refresh_pressed()
 
 func _on_refresh_pressed() -> void:
-	networking_manager.get_lobby_list()
+	ServerRepository.get_lobby_list()
 	refresh_button.disabled = true
 	refresh_button.text = "🔄 REFRESHING..."
 	_set_buttons_enabled(false)
@@ -86,7 +85,7 @@ func _on_lobby_list_received(lobby_list: Array) -> void:
 
 func _on_create_pressed() -> void:
 	var random_code = _generate_random_code()
-	networking_manager.create_lobby(random_code)
+	ServerRepository.create_lobby(random_code)
 	create_button.disabled = true
 	create_button.text = "⚡ CREATING..."
 
@@ -96,27 +95,27 @@ func _on_random_pressed() -> void:
 
 	# Get current lobby list and join a random one
 	_is_joining_random = true
-	networking_manager.get_lobby_list()
+	ServerRepository.get_lobby_list()
 
 func _on_join_lobby_pressed(lobby_code: String) -> void:
 	print("=== LOBBY LIST RECEIVED JOIN SIGNAL ===")
 	print("Join lobby pressed for code: ", lobby_code)
-	print("Networking manager available: ", networking_manager != null)
-	if networking_manager:
+	print("Server repository available: ", ServerRepository != null)
+	if ServerRepository:
 		print("Setting status and calling join_lobby...")
 		_set_status("Joining lobby " + lobby_code + "...")
-		networking_manager.join_lobby(lobby_code)
+		ServerRepository.join_lobby(lobby_code)
 		_set_buttons_enabled(false)
 		print("Join lobby called successfully")
 	else:
-		print("ERROR: Networking manager is null!")
+		print("ERROR: Server repository is null!")
 		_set_status("Error: Networking not available")
 
 func _on_lobby_created(lobby_data: Dictionary) -> void:
 	create_button.disabled = false
 	create_button.text = "⚡ CREATE LOBBY"
 	# Automatically join the lobby we just created
-	networking_manager.join_lobby(lobby_data["code"])
+	ServerRepository.join_lobby(lobby_data["code"])
 
 func _on_lobby_joined(lobby_data: Dictionary) -> void:
 	_set_buttons_enabled(true)
@@ -186,7 +185,7 @@ func _join_random_lobby(lobby_list: Array) -> void:
 	# Join a random available lobby
 	var random_lobby = available_lobbies[randi() % available_lobbies.size()]
 	_set_status("Joining random lobby " + random_lobby["code"] + "...")
-	networking_manager.join_lobby(random_lobby["code"])
+	ServerRepository.join_lobby(random_lobby["code"])
 
 func _set_status(message: String) -> void:
 	_current_status = message

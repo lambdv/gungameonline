@@ -14,24 +14,17 @@ var connected_to_udp: bool = false
 var current_request_id: int = 0
 var pending_requests: Dictionary = {}
 
-# Signal emitted when HTTP response is received
-signal http_response_received(request_id: int, result: int, response_code: int, headers: Array, body: PackedByteArray)
+signal http_response_received(request_id: int, result: int, response_code: int, headers: Array, body: PackedByteArray) # Signal emitted when HTTP response is received
 
-# Signal emitted when UDP packet is received
-signal udp_packet_received(data: Dictionary)
+signal udp_packet_received(data: Dictionary) # Signal emitted when UDP packet is received
 
 func _ready() -> void:
-	_setup_http_client()
-	_setup_udp_client()
-
-func _setup_http_client() -> void:
 	http_request = HTTPRequest.new()
 	add_child(http_request)
 	http_request.request_completed.connect(_on_http_request_completed)
 	http_request.use_threads = false
 	http_request.timeout = 10.0
-
-func _setup_udp_client() -> void:
+	
 	udp_peer = PacketPeerUDP.new()
 
 func _exit_tree() -> void:
