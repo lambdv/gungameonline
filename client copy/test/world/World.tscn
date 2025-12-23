@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://dhdgh1qp6kttd" path="res://test/world/world.gd" id="1_world"]
 [ext_resource type="PackedScene" uid="uid://hlxn3r45403a" path="res://ui/overlays/hud/crosshair.tscn" id="2_4lfbs"]
 [ext_resource type="PackedScene" uid="uid://dk2n560dayotq" path="res://ui/overlays/hud/hud.tscn" id="3_llimo"]
-[ext_resource type="PackedScene" path="res://ui/menus/pause/pause_menu.tscn" id="4_pausemenu"]
+[ext_resource type="PackedScene" path="res://ui/pause/pause_menu.tscn" id="4_pausemenu"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_io8um"]
 

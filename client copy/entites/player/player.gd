@@ -79,7 +79,7 @@ func _ready() -> void:
 	damageable.died.connect(_on_player_died)
 
 	# Initialize floating 3D health bar - only visible on remote players
-	health_bar_3d = preload("res://ui/overlays/health_bar/health_bar_3d.gd").new()
+	health_bar_3d = preload("res://ui/health_bar_3d.gd").new()
 	add_child(health_bar_3d)
 	health_bar_3d.set_target(self)  # Tell health bar to follow this player
 	health_bar_3d.set_health(damageable.current_health, damageable.max_health)
