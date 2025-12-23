@@ -62,6 +62,7 @@ var current_weapon_instance: Node3D = null  # Currently equipped weapon scene in
 var hand_item_base_position: Vector3  # Original weapon position for sway animations
 var was_on_floor: bool = true  # Previous frame's ground state for jump animations
 var networking_manager: Node = null  # Reference to networking manager for multiplayer sync
+var pending_weapon_switch_id: int = -1  # Track weapon switch we initiated to avoid applying it from state sync
 # Attack cooldown removed - now handled by weapon fire rate
 
 ## _ready
@@ -171,16 +172,43 @@ func apply_state_sync(state_data: Dictionary) -> void:
 		var current_ammo = state_data.get("current_ammo", 0)
 		var max_ammo = state_data.get("max_ammo", 0)
 
-		# Switch to correct weapon if different
+		# For local players, only apply weapon switch from state sync if:
+		# 1. We didn't initiate this weapon switch ourselves, OR
+		# 2. The weapon in state sync matches what we're already using (server confirmation)
+		# This prevents the local player from switching weapons twice when they initiate a switch
+		var should_apply_weapon_switch = true
 		var current_weapon_id = inventory.get_active_weapon_id()
-		if current_weapon_id != weapon_id:
+		if is_local:
+			# If we have a pending weapon switch and state sync matches it, clear the pending flag
+			if pending_weapon_switch_id == weapon_id and current_weapon_id == weapon_id:
+				# Server confirmed our weapon switch - clear pending flag
+				pending_weapon_switch_id = -1
+				should_apply_weapon_switch = false
+			# If we have a pending weapon switch but state sync doesn't match, ignore it (our switch is newer)
+			elif pending_weapon_switch_id != -1 and pending_weapon_switch_id != weapon_id:
+				should_apply_weapon_switch = false
+			# If state sync matches current weapon, no need to switch
+			elif current_weapon_id == weapon_id:
+				should_apply_weapon_switch = false
+
+		# Switch to correct weapon if different (server-authoritative)
+		if should_apply_weapon_switch and current_weapon_id != weapon_id and weapon_id > 0:
 			# Find slot containing this weapon
+			var found_slot = false
 			for slot in range(1, 4):
 				if inventory.get_weapon_id_in_slot(slot) == weapon_id:
 					inventory.switch_to_weapon(slot)
+					found_slot = true
+					# Clear pending switch if we're applying a server-initiated switch
+					if is_local:
+						pending_weapon_switch_id = -1
 					break
+			
+			# If weapon not found in any slot, log warning but don't crash
+			if not found_slot:
+				push_warning("Weapon ID " + str(weapon_id) + " not found in inventory slots")
 
-		# Update ammo on current weapon
+		# Update ammo on current weapon (wait for weapon to load if needed)
 		if current_weapon_instance and current_weapon_instance.has_method("set_current_ammo"):
 			current_weapon_instance.set_current_ammo(current_ammo)
 			current_weapon_instance.set_max_ammo(max_ammo)
@@ -267,16 +295,23 @@ func _on_mouse_motion_changed(motion: Vector2) -> void:
 	current_mouse_motion = motion
 
 func _on_weapon_switch_requested(slot: int) -> void:
-	if inventory:
-		inventory.switch_to_weapon(slot)
-		# If this is the local player, sync weapon switch to server
-		if is_local and networking_manager and networking_manager.has_method("send_weapon_switch"):
-			var weapon_id = inventory.get_active_weapon_id()
-			if weapon_id > 0:
-				networking_manager.send_weapon_switch(weapon_id)
+	if not inventory:
+		return
+	
+	# Switch weapon in inventory (this will emit active_weapon_changed signal)
+	inventory.switch_to_weapon(slot)
+	
+	# If this is the local player, sync weapon switch to server
+	if is_local and networking_manager:
+		var weapon_id = inventory.get_active_weapon_id()
+		if weapon_id > 0:
+			# Track this weapon switch so we don't apply it again from state sync
+			pending_weapon_switch_id = weapon_id
+			networking_manager.send_weapon_switch(weapon_id)
 
 func _on_active_weapon_changed(weapon_id: int) -> void:
-	load_weapon(weapon_id)
+	if weapon_id > 0:
+		load_weapon(weapon_id)
 
 func _on_health_changed(new_health: int, max_health: int) -> void:
 	# Update 3D health bar
@@ -340,46 +375,57 @@ func _on_reload_pressed() -> void:
 
 func load_weapon(weapon_id: int) -> void:
 	if not inventory or not hand_item:
+		push_warning("Cannot load weapon: inventory or hand_item is null")
 		return
 	
+	# Clean up existing weapon
 	for child in hand_item.get_children():
 		child.queue_free()
 	current_weapon_instance = null
 	
+	# Wait for cleanup to complete
+	await get_tree().process_frame
+	
 	var weapon_data = inventory.get_weapon_data(weapon_id)
 	if weapon_data.is_empty():
+		push_warning("Weapon data not found for weapon_id: " + str(weapon_id))
 		return
 	
 	var scene_path = weapon_data.get("scene_path", "")
 	if scene_path.is_empty():
+		push_warning("Weapon scene_path is empty for weapon_id: " + str(weapon_id))
 		return
 	
 	var weapon_scene = load(scene_path) as PackedScene
 	if not weapon_scene:
+		push_error("Failed to load weapon scene: " + scene_path)
 		return
 	
 	current_weapon_instance = weapon_scene.instantiate()
-	if current_weapon_instance:
-		hand_item.add_child(current_weapon_instance)
-		await get_tree().process_frame
+	if not current_weapon_instance:
+		push_error("Failed to instantiate weapon scene: " + scene_path)
+		return
+	
+	hand_item.add_child(current_weapon_instance)
+	await get_tree().process_frame
 
-		# Add weapon script if it doesn't have one
-		if not current_weapon_instance.has_method("play_attack_animation"):
-			var weapon_script = preload("res://entites/weapons/weapon.gd")
-			current_weapon_instance.set_script(weapon_script)
+	# Add weapon script if it doesn't have one
+	if not current_weapon_instance.has_method("play_attack_animation"):
+		var weapon_script = preload("res://entites/weapons/weapon.gd")
+		current_weapon_instance.set_script(weapon_script)
 
-		# Initialize weapon with data and camera
-		if current_weapon_instance.has_method("initialize_weapon_data"):
-			current_weapon_instance.initialize_weapon_data(weapon_data)
-		if current_weapon_instance.has_method("set_camera"):
-			current_weapon_instance.set_camera(camera)
+	# Initialize weapon with data and camera
+	if current_weapon_instance.has_method("initialize_weapon_data"):
+		current_weapon_instance.initialize_weapon_data(weapon_data)
+	if current_weapon_instance.has_method("set_camera") and camera:
+		current_weapon_instance.set_camera(camera)
 
-		# Ensure weapon position is set correctly after initialization
-		if current_weapon_instance.has_method("reset_to_base_position"):
-			current_weapon_instance.reset_to_base_position()
+	# Ensure weapon position is set correctly after initialization
+	if current_weapon_instance.has_method("reset_to_base_position"):
+		current_weapon_instance.reset_to_base_position()
 
-		set_weapon_visibility(current_weapon_instance, true)
-		hand_item.visible = true
+	set_weapon_visibility(current_weapon_instance, true)
+	hand_item.visible = true
 
 func update_weapon_sway(delta: float) -> void:
 	if not hand_item:
@@ -444,12 +490,20 @@ func set_networking_manager(manager: Node) -> void:
 ## @param weapon_id: ID of the weapon they switched to
 func _on_remote_weapon_switched(remote_player_id: int, weapon_id: int) -> void:
 	# Only handle weapon switches for other players, not ourselves
-	if player_id != remote_player_id and inventory:
-		# Find the slot that contains this weapon ID
-		for slot in range(1, 4):  # Assuming 3 weapon slots (1, 2, 3)
-			if inventory.get_weapon_id_in_slot(slot) == weapon_id:
+	# (Local player weapon switches are handled via state sync to avoid conflicts)
+	if player_id == remote_player_id:
+		return
+	
+	if not inventory:
+		return
+	
+	# Find the slot that contains this weapon ID
+	for slot in range(1, 4):  # Assuming 3 weapon slots (1, 2, 3)
+		if inventory.get_weapon_id_in_slot(slot) == weapon_id:
+			# Only switch if not already on this weapon
+			if inventory.get_active_weapon_id() != weapon_id:
 				inventory.switch_to_weapon(slot)
-				break
+			break
 
 ## _on_network_damage_received
 ## Handles damage events received from the network (server-authoritative)
@@ -476,17 +530,18 @@ func update_target_position(new_position: Vector3, new_rotation: Vector3) -> voi
 			target_rotation = new_rotation
 			needs_reconciliation = true
 		# Always update rotation for local player (look direction should be authoritative)
-		rotation.y = new_rotation.y
+		# new_rotation: (body_y_rotation, head_x_rotation, roll)
+		rotation.y = -new_rotation.x  # Body rotation (horizontal turning) - inverted for correct direction
 		if character_model:
-			character_model.rotation.x = new_rotation.x
+			character_model.rotation.x = new_rotation.y  # Head rotation (vertical looking) - correct direction
 	else:
 		# For remote players, interpolate towards server position
 		if not has_received_position:
 			# First position update - snap to position
 			global_position = new_position
-			rotation.y = new_rotation.y
+			rotation.y = -new_rotation.x  # Body rotation (horizontal turning) - inverted for correct direction
 			if character_model:
-				character_model.rotation.x = new_rotation.x
+				character_model.rotation.x = new_rotation.y  # Head rotation (vertical looking) - correct direction
 			has_received_position = true
 		else:
 			# Subsequent updates - set interpolation target
@@ -513,10 +568,13 @@ func interpolate_to_target(delta: float) -> void:
 
 	# Interpolate rotation (horizontal rotation - body turning)
 	var current_y_rotation = rotation.y
-	var target_y_rotation = target_rotation.y
+	var target_y_rotation = -target_rotation.x  # Body rotation is in x component, inverted for correct direction
 	var angle_diff = fmod(target_y_rotation - current_y_rotation + PI, TAU) - PI
 	rotation.y = current_y_rotation + angle_diff * interpolation_speed * delta
 
-	# For vertical rotation (head/camera), apply directly since it's look direction
+	# For vertical rotation (head/camera), interpolate smoothly
 	if character_model:
-		character_model.rotation.x = target_rotation.x
+		var current_head_rotation = character_model.rotation.x
+		var target_head_rotation = target_rotation.y  # Head rotation is in y component, correct direction
+		var head_angle_diff = fmod(target_head_rotation - current_head_rotation + PI, TAU) - PI
+		character_model.rotation.x = current_head_rotation + head_angle_diff * interpolation_speed * delta

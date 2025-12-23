@@ -165,6 +165,7 @@ func _on_position_update_received(player_id: int, position: Vector3, rotation: V
 		var player_instance = remote_players[player_id]
 		if is_instance_valid(player_instance):
 			# Use smooth interpolation instead of direct position setting
+			# rotation data: (body_y_rotation, head_x_rotation, roll)
 			if player_instance.has_method("update_target_position"):
 				player_instance.update_target_position(position, Vector3(rotation.x, rotation.y, 0.0))
 			else:
@@ -180,8 +181,10 @@ func _on_state_sync_received(player_states: Array) -> void:
 	for state_data in player_states:
 		var player_id = state_data.get("id", -1)
 
-		# Skip our own player - we control our own state locally
+		# Apply state sync to local player for server-authoritative data (weapon, ammo, health)
 		if player_id == NetworkingManager.player_id:
+			if local_player and is_instance_valid(local_player) and local_player.has_method("apply_state_sync"):
+				local_player.apply_state_sync(state_data)
 			continue
 
 		# Ensure remote player exists
