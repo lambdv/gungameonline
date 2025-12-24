@@ -1,6 +1,7 @@
 [gd_scene load_steps=5 format=3 uid="uid://juqhbmgk24a0"]
 
 [ext_resource type="Script" uid="uid://b7ifndr08117t" path="res://entites/player/player.gd" id="1_p0vlq"]
+[ext_resource type="PackedScene" uid="uid://bpi1unhvdh6nj" path="res://entites/player/rachel__black_heart_lovell_v_5_vrm.tscn" id="2_pbn7k"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_5q5h1"]
 radius = 0.2
@@ -19,8 +20,11 @@ script = ExtResource("1_p0vlq")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.000264883, -1.24144, 0.000412107)
 mesh = SubResource("CapsuleMesh_5q5h1")
 
-[node name="CollisionShape3D2" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.000264883, -1.24144, 0.000412107)
+[node name="rachel__black_heart_lovell_v5vrm" parent="." instance=ExtResource("2_pbn7k")]
+transform = Transform3D(-0.988433, 0, -0.151658, 0, 1, 0, 0.151658, 0, -0.988433, 0.000228643, -2.16985, 0.0962885)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.000264883, -0.840887, 0.000412107)
 shape = SubResource("ConvexPolygonShape3D_61f3v")
 
 [node name="CameraRig" type="Node3D" parent="."]

@@ -1,5 +1,4 @@
 mod handlers;
-mod models;
 mod simulator;
 mod validation;
 mod server;
@@ -8,12 +7,11 @@ use fern;
 use chrono;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use crate::models::GameServer;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     setup_logging()?;
-    let game_server = Arc::new(RwLock::new(GameServer::new()));
+    let game_server = Arc::new(RwLock::new(handlers::server::GameServer::new()));
     server::start_servers(game_server).await?;
     Ok(())
 }

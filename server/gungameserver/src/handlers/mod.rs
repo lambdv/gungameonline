@@ -1,2 +1,2 @@
-pub mod lobby;
+pub mod http;
 pub mod networking;

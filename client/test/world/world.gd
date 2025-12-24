@@ -14,14 +14,32 @@ func _enter_tree() -> void:
 ##
 ## This scene serves as both a test environment and reference implementation
 ## for how to integrate the networking system into actual game levels.
+##
+## Integration Steps for Game Levels:
+## 1. Add PLAYER_SCENE and PLAYER_SPAWN_POSITION constants
+## 2. Connect to ServerCallbacks signals in _ready(): lobby_joined, player_joined, etc.
+## 3. Implement spawn_local_player() and spawn_remote_player() functions
+## 4. Add position synchronization in _process() with throttling
+## 5. Handle player respawning and cleanup in lobby_left signal
+## 6. Use ClientState for managing player instances and game state
 
-const PLAYER_SCENE = preload("res://entites/player/Player.tscn")  # Player prefab for spawning
+const PLAYER_SCENE_PATH = "res://entites/player/Player.tscn"  # Player prefab path for spawning
 const PLAYER_SPAWN_POSITION = Vector3(0, 1.62212, -2.21878)  # Where local player starts
 
 # Player instance tracking (now managed by ClientState)
 @onready var server_dummy: Node3D = null  # Server-controlled bot for testing
 @onready var connection_timer: Timer = null  # Timeout for connection attempts
 @onready var error_label: Label = $ErrorLabel  # UI for connection errors
+
+# Cached player scene resource (loaded at runtime to avoid parse-time dependency issues)
+var _player_scene: PackedScene = null
+
+func get_player_scene() -> PackedScene:
+	if _player_scene == null:
+		_player_scene = load(PLAYER_SCENE_PATH) as PackedScene
+		if _player_scene == null:
+			push_error("Failed to load player scene from: " + PLAYER_SCENE_PATH)
+	return _player_scene
 
 ## _ready
 ## Initialize the test world and start multiplayer connection
@@ -228,7 +246,11 @@ func spawn_local_player() -> void:
 		print("World: Local player already exists, skipping spawn")
 		return
 
-	var player_instance = PLAYER_SCENE.instantiate()
+	var player_scene = get_player_scene()
+	if player_scene == null:
+		push_error("Cannot spawn player: player scene failed to load")
+		return
+	var player_instance = player_scene.instantiate()
 	if not player_instance:
 		push_error("Failed to instantiate player scene!")
 		return
@@ -273,7 +295,11 @@ func spawn_remote_player(player_id: int, player_data: Dictionary) -> void:
 	if ClientState.get_other_player(player_id):
 		return
 
-	var player_instance = PLAYER_SCENE.instantiate()
+	var player_scene = get_player_scene()
+	if player_scene == null:
+		push_error("Cannot spawn player: player scene failed to load")
+		return
+	var player_instance = player_scene.instantiate()
 	var spawn_pos = PLAYER_SPAWN_POSITION + Vector3(randf_range(-2, 2), 0, randf_range(-2, 2))
 	player_instance.position = spawn_pos
 	player_instance.name = "RemotePlayer_" + str(player_id)

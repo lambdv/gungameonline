@@ -62,6 +62,13 @@ func _setup_connection_monitoring() -> void:
 	connection_monitor_timer.timeout.connect(_check_connection_health)
 	add_child(connection_monitor_timer)
 	connection_monitor_timer.start()
+	
+	# Setup keepalive timer to send periodic heartbeat messages
+	var keepalive_timer = Timer.new()
+	keepalive_timer.wait_time = 10.0  # Send keepalive every 10 seconds
+	keepalive_timer.timeout.connect(_send_keepalive)
+	add_child(keepalive_timer)
+	keepalive_timer.start()
 
 func _process(_delta: float) -> void:
 	if adaptor:
@@ -498,6 +505,17 @@ func _check_connection_health() -> void:
 		print("Connection timeout detected (%.1f seconds since last UDP activity)" % time_since_last_activity)
 		_set_connection_state(callbacks.ConnectionState.DISCONNECTED)
 		attempt_reconnection()
+
+func _send_keepalive() -> void:
+	# Send keepalive heartbeat to prevent being marked inactive during scene loading
+	if connection_state == callbacks.ConnectionState.CONNECTED_LOBBY and adaptor and adaptor.is_udp_connected():
+		if not current_lobby.is_empty() and player_id >= 0:
+			var packet = {
+				"type": "keepalive",
+				"lobby_code": current_lobby.get("code", ""),
+				"player_id": player_id
+			}
+			adaptor.send_udp_packet(packet)
 
 func _on_udp_connection_timeout(lobby_data: Dictionary) -> void:
 	if connection_state != callbacks.ConnectionState.CONNECTED_LOBBY:
