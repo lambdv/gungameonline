@@ -41,9 +41,5 @@ func _leave_game() -> void:
 	if NetworkingManager:
 		NetworkingManager.return_to_lobby_browser()
 
-	# Disconnect from multiplayer
-	if MultiplayerManager and MultiplayerManager.is_connected:
-		MultiplayerManager.disconnect_from_server()
-
 	# Change to lobby list scene instead of main menu
-	get_tree().change_scene_to_file("res://lobbies/lobby_list.tscn")
+	get_tree().change_scene_to_file("res://ui/lobbies/lobby_list.tscn")

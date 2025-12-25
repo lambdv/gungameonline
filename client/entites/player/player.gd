@@ -61,7 +61,7 @@ var health_bar_3d: Node3D = null  # Floating 3D health bar above player
 var current_weapon_instance: Node3D = null  # Currently equipped weapon scene instance
 var hand_item_base_position: Vector3  # Original weapon position for sway animations
 var was_on_floor: bool = true  # Previous frame's ground state for jump animations
-var networking_manager: Node = null  # Reference to ServerRepository for multiplayer sync
+var networking_manager: Node = null  # Reference to NetworkingManager for multiplayer sync
 var pending_weapon_switch_id: int = -1  # Track weapon switch we initiated to avoid applying it from state sync
 # Attack cooldown removed - now handled by weapon fire rate
 
@@ -252,10 +252,7 @@ func _physics_process(delta: float) -> void:
 
 	was_on_floor = is_on_floor()
 	
-	# Update player state in ClientState based on movement
-	if ClientState:
-		var is_crouching = false  # TODO: Add crouch detection when crouch is implemented
-		ClientState.update_player_state_from_movement(player_id, is_local, velocity, is_on_floor(), is_crouching)
+	# Player state is managed locally, no need for ClientState updates
 
 func jump() -> void:
 	velocity.y = JUMP_VELOCITY
@@ -336,12 +333,7 @@ func _on_player_died(attacker: Node) -> void:
 		attacker_name = "unknown"
 	print("Player died! Killed by: ", attacker_name)
 	
-	# Update player state in ClientState
-	if ClientState:
-		if is_local:
-			ClientState.set_main_player_state(ClientState.PlayerState.DEAD)
-		else:
-			ClientState.set_other_player_state(player_id, ClientState.PlayerState.DEAD)
+	# Player death handled locally
 
 	# Sync death across network
 	if multiplayer.is_server():
@@ -356,8 +348,7 @@ func _on_player_died(attacker: Node) -> void:
 		await get_tree().create_timer(3.0).timeout
 		damageable.current_health = damageable.max_health
 		# Update state back to alive after respawn
-		if ClientState and is_local:
-			ClientState.set_main_player_state(ClientState.PlayerState.IDLE)
+		# Player respawn handled locally
 	else:
 		print("Player died in test scene - no auto-respawn")
 
@@ -491,14 +482,14 @@ func set_weapon_visibility(node: Node, should_be_visible: bool) -> void:
 
 ## set_networking_manager
 ## Sets reference to networking repository for multiplayer synchronization
-## @param manager: The ServerRepository instance
+## @param manager: The NetworkingManager instance
 func set_networking_manager(manager: Node) -> void:
 	networking_manager = manager
-	# Connect to signals from ServerCallbacks
-	if ServerCallbacks and ServerCallbacks.has_signal("weapon_switched"):
-		ServerCallbacks.weapon_switched.connect(_on_remote_weapon_switched)
-	if ServerCallbacks and ServerCallbacks.has_signal("player_damaged"):
-		ServerCallbacks.player_damaged.connect(_on_network_damage_received)
+	# Connect to signals from NetworkingManager
+	if networking_manager and networking_manager.has_signal("weapon_switched"):
+		networking_manager.weapon_switched.connect(_on_remote_weapon_switched)
+	if networking_manager and networking_manager.has_signal("player_damaged"):
+		networking_manager.player_damaged.connect(_on_network_damage_received)
 
 ## _on_remote_weapon_switched
 ## Handles weapon switch events for remote players (not local player)
