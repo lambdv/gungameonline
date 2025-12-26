@@ -107,6 +107,15 @@ func _ready() -> void:
 	if weapon_id > 0:
 		load_weapon(weapon_id)
 
+	
+func _process(delta: float) -> void:
+	if is_local:
+		var position = global_position
+		var look_vector = camera.project_ray_normal(Vector2(0, 0))
+		print("Position: ", position)
+		print("Look vector: ", look_vector)
+
+
 func set_is_local(value: bool) -> void:
 	var was_local = is_local
 	is_local = value

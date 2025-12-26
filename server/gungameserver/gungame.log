@@ -3540,3 +3540,8 @@
 [2025-12-25][05:07:40][gungameserver::server][ERROR] UDP recv error: An existing connection was forcibly closed by the remote host. (os error 10054)
 [2025-12-25][05:07:40][gungameserver::server][ERROR] UDP recv error: An existing connection was forcibly closed by the remote host. (os error 10054)
 [2025-12-25][05:07:40][gungameserver::server][ERROR] UDP recv error: An existing connection was forcibly closed by the remote host. (os error 10054)
+[2025-12-25][08:30:58][gungameserver][INFO] Created test lobby 'test'
+[2025-12-25][08:30:58][gungameserver::server][INFO] Starting HTTP server on 0.0.0.0:8080
+[2025-12-25][08:30:58][gungameserver::server][INFO] HTTP server successfully bound to 0.0.0.0:8080
+[2025-12-25][08:31:01][gungameserver::tick::lobby_tick][WARN] Failed to add player 1: Player already exists
+[2025-12-25][08:31:35][gungameserver::tick::lobby_tick][WARN] Failed to add player 2: Player already exists
