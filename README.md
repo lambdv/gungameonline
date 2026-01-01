@@ -4,12 +4,16 @@ An online Multiplayer First Person Shooter video game built with Godot and Rust.
 
 ![GunGameOnline](./docs/screenshot.png)
 
-## Features
-- Multiplayer gameplay with lobby system and authorative server.
-- Weapon Swapping and bullet amount management.
-- Health and damage system.
-- Real-time synchronization of player positions and rotations.
-- Pause menu and disconnect functionality.
+## Getting Started
+```bash
+# Start the server
+cd server/rust/gungameserver
+cargo run
+
+# Start the client
+cd client
+godot --path . --scene res://test/world/World.tscn
+```
 
 ## Architecture
 The frontend is built using Godot game engine which is a "view" into a player's representation of the game world and a "cache" of the player state on the server.
@@ -22,3 +26,12 @@ HTTP endpoints are used for less speed critical operations such as lobby joining
 Server state's state is a struct with a lock for thread safety when handling concurrent requests.
 
 ![System Architecture](./docs/architecture.png)
+
+
+
+## Features
+- Multiplayer gameplay with lobby system and authorative server.
+- Weapon Swapping and bullet amount management.
+- Health and damage system.
+- Real-time synchronization of player positions and rotations.
+- Pause menu and disconnect functionality.
